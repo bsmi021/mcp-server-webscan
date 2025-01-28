@@ -3,6 +3,8 @@
 
 A Model Context Protocol (MCP) server for web content scanning and analysis. This server provides tools for fetching, analyzing, and extracting information from web pages.
 
+<a href="https://glama.ai/mcp/servers/u0tna3hemh"><img width="380" height="200" src="https://glama.ai/mcp/servers/u0tna3hemh/badge" alt="Webscan Server MCP server" /></a>
+
 ## Features
 
 - **Page Fetching**: Convert web pages to Markdown for easy analysis
