@@ -1,4 +1,5 @@
 # MCP Webscan Server
+[![smithery badge](https://smithery.ai/badge/mcp-server-webscan)](https://smithery.ai/server/mcp-server-webscan)
 
 A Model Context Protocol (MCP) server for web content scanning and analysis. This server provides tools for fetching, analyzing, and extracting information from web pages.
 
@@ -13,6 +14,15 @@ A Model Context Protocol (MCP) server for web content scanning and analysis. Thi
 
 ## Installation
 
+### Installing via Smithery
+
+To install Webscan for Claude Desktop automatically via [Smithery](https://smithery.ai/server/mcp-server-webscan):
+
+```bash
+npx -y @smithery/cli install mcp-server-webscan --client claude
+```
+
+### Manual Installation
 ```bash
 # Clone the repository
 git clone <repository-url>
