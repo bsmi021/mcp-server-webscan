@@ -1,27 +1,15 @@
-import { extractLinksTool } from "./tools/extractLinksTool.js";
 import { createServer } from "./initialize.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { crawlSiteTool } from "./tools/crawlSiteTool.js";
-import { checkLinksTool } from "./tools/checkLinksTool.js";
-import { fetchPageTool } from "./tools/fetchPageTool.js";
-import { findPatternsTool } from "./tools/findPatterns.js";
-import { generateSiteMapTool } from "./tools/genereateSiteMaptool.js";
+// Individual tool imports are no longer needed here, registration happens in initialize.ts via tools/index.ts
 
 const main = async () => {
     try {
         console.error("Initializing webscan MCP server...");
 
-        // Create and configure the MCP server
+        // Create and configure the MCP server (this now includes tool registration)
         const server = createServer();
 
-        // Register tools
-        extractLinksTool(server);
-        crawlSiteTool(server);
-        checkLinksTool(server);
-        fetchPageTool(server);
-        findPatternsTool(server);
-        generateSiteMapTool(server);
-
+        // Tool registration is now handled within createServer via registerTools
 
         // Start the MCP server
         const transport = new StdioServerTransport();

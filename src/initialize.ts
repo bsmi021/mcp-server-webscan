@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { registerTools } from './tools/index.js'; // Import the central registrar
 
 
 
@@ -36,6 +37,8 @@ export const createServer = (): McpServer => {
         }
     });
 
+    // Register all tools
+    registerTools(server);
+
     return server;
 }
-

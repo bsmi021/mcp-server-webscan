@@ -1,4 +1,5 @@
 # MCP Webscan Server
+
 [![smithery badge](https://smithery.ai/badge/mcp-server-webscan)](https://smithery.ai/server/mcp-server-webscan)
 
 A Model Context Protocol (MCP) server for web content scanning and analysis. This server provides tools for fetching, analyzing, and extracting information from web pages.
@@ -25,6 +26,7 @@ npx -y @smithery/cli install mcp-server-webscan --client claude
 ```
 
 ### Manual Installation
+
 ```bash
 # Clone the repository
 git clone <repository-url>
@@ -49,40 +51,42 @@ The server runs on stdio transport, making it compatible with MCP clients like C
 
 ### Available Tools
 
-1. `fetch_page`
-   - Fetches a web page and converts it to Markdown
+1. `fetch-page`
+   - Fetches a web page and converts it to Markdown.
    - Parameters:
-     - `url` (required): URL of the page to fetch
-     - `selector` (optional): CSS selector to target specific content
+     - `url` (required): URL of the page to fetch.
+     - `selector` (optional): CSS selector to target specific content.
 
-2. `extract_links`
-   - Extracts all links from a web page with their text
+2. `extract-links`
+   - Extracts all links from a web page with their text.
    - Parameters:
-     - `url` (required): URL of the page to analyze
-     - `baseUrl` (optional): Base URL to filter links
+     - `url` (required): URL of the page to analyze.
+     - `baseUrl` (optional): Base URL to filter links.
+     - `limit` (optional, default: 100): Maximum number of links to return.
 
-3. `crawl_site`
-   - Recursively crawls a website up to a specified depth
+3. `crawl-site`
+   - Recursively crawls a website up to a specified depth.
    - Parameters:
-     - `url` (required): Starting URL to crawl
-     - `maxDepth` (optional, default: 2): Maximum crawl depth
+     - `url` (required): Starting URL to crawl.
+     - `maxDepth` (optional, default: 2): Maximum crawl depth (0-5).
 
-4. `check_links`
-   - Checks for broken links on a page
+4. `check-links`
+   - Checks for broken links on a page.
    - Parameters:
-     - `url` (required): URL to check links for
+     - `url` (required): URL to check links for.
 
-5. `find_patterns`
-   - Finds URLs matching a specific pattern
+5. `find-patterns`
+   - Finds URLs matching a specific pattern.
    - Parameters:
-     - `url` (required): URL to search in
-     - `pattern` (required): Regex pattern to match URLs against
+     - `url` (required): URL to search in.
+     - `pattern` (required): JavaScript-compatible regex pattern to match URLs against.
 
-6. `generate_sitemap`
-   - Generates a simple XML sitemap
+6. `generate-site-map`
+   - Generates a simple XML sitemap by crawling.
    - Parameters:
-     - `url` (required): Root URL for sitemap
-     - `maxUrls` (optional, default: 100): Maximum number of URLs to include
+     - `url` (required): Root URL for sitemap crawl.
+     - `maxDepth` (optional, default: 2): Maximum crawl depth for discovering URLs (0-5).
+     - `limit` (optional, default: 1000): Maximum number of URLs to include in the sitemap.
 
 ## Example Usage with Claude Desktop
 
@@ -93,9 +97,10 @@ The server runs on stdio transport, making it compatible with MCP clients like C
   "mcpServers": {
     "webscan": {
       "command": "node",
-      "args": ["path/to/mcp-server-webscan/dist/index.js"],
+      "args": ["path/to/mcp-server-webscan/build/index.js"], // Corrected path
       "env": {
-        "NODE_ENV": "development"
+        "NODE_ENV": "development",
+        "LOG_LEVEL": "info" // Example: Set log level via env var
       }
     }
   }
@@ -115,14 +120,63 @@ Could you fetch the content from https://example.com and convert it to Markdown?
 - Node.js >= 18
 - npm
 
-### Project Structure
+### Project Structure (Post-Refactor)
 
 ```
 mcp-server-webscan/
 ├── src/
-│   └── index.ts    # Main server implementation
-├── dist/           # Compiled JavaScript
+│   ├── config/
+│   │   └── ConfigurationManager.ts
+│   ├── services/
+│   │   ├── CheckLinksService.ts
+│   │   ├── CrawlSiteService.ts
+│   │   ├── ExtractLinksService.ts
+│   │   ├── FetchPageService.ts
+│   │   ├── FindPatternsService.ts
+│   │   ├── GenerateSitemapService.ts
+│   │   └── index.ts
+│   ├── tools/
+│   │   ├── checkLinksTool.ts
+│   │   ├── checkLinksToolParams.ts
+│   │   ├── crawlSiteTool.ts
+│   │   ├── crawlSiteToolParams.ts
+│   │   ├── extractLinksTool.ts
+│   │   ├── extractLinksToolParams.ts
+│   │   ├── fetchPageTool.ts
+│   │   ├── fetchPageToolParams.ts
+│   │   ├── findPatterns.ts
+│   │   ├── findPatternsToolParams.ts
+│   │   ├── generateSitemapTool.ts
+│   │   ├── generateSitemapToolParams.ts
+│   │   └── index.ts
+│   ├── types/
+│   │   ├── checkLinksTypes.ts
+│   │   ├── crawlSiteTypes.ts
+│   │   ├── extractLinksTypes.ts
+│   │   ├── fetchPageTypes.ts
+│   │   ├── findPatternsTypes.ts
+│   │   ├── generateSitemapTypes.ts
+│   │   └── index.ts
+│   ├── utils/
+│   │   ├── errors.ts
+│   │   ├── index.ts
+│   │   ├── logger.ts
+│   │   ├── markdownConverter.ts
+│   │   └── webUtils.ts
+│   ├── initialize.ts
+│   └── index.ts    # Main server entry point
+├── build/          # Compiled JavaScript (Corrected)
+├── node_modules/
+├── .clinerules
+├── .gitignore
+├── Dockerfile
+├── LICENSE
+├── mcp-consistant-servers-guide.md
 ├── package.json
+├── package-lock.json
+├── README.md
+├── RFC-2025-001-Refactor.md
+├── smithery.yaml
 └── tsconfig.json
 ```
 

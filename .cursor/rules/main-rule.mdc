@@ -1,0 +1,468 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# MCP Server Development Guidelines
+
+## project name: mcp-server-webscan
+## memory_bank ProjectID: de83ede7-85de-4746-86c7-c2dafefc3fb7
+
+## Description:
+A Model Context Protocol (MCP) server for web content scanning and analysis. This server provides tools for fetching, analyzing, and extracting information from web pages.
+
+## IMPERATIVE
+
+    - All projects must contain a PRD, Features spec, and RFCs
+        - All projects must have a memory - bank
+
+## Project Structure
+
+    - Follow the standard MCP server directory structure:
+
+```
+  src/
+  ├── config/
+  │   └── ConfigurationManager.ts
+  ├── services/
+  │   ├── YourService.ts
+  │   └── index.ts
+  ├── tools/
+  │   ├── yourTool.ts
+  │   ├── yourToolParams.ts
+  │   └── index.ts
+  ├── types/
+  │   ├── yourServiceTypes.ts
+  │   └── index.ts
+  ├── utils/
+  │   ├── logger.ts
+  │   ├── errors.ts
+  │   └── index.ts
+  ├── initialize.ts
+  └── server.ts
+  ```
+
+## TypeScript Standards
+
+    - Use ES Modules format with `.js` extensions in imports:
+
+```typescript
+  // Correct:
+  import { YourService } from '../services/YourService.js';
+  
+  // Incorrect:
+  import { YourService } from '../services/YourService';
+  ```
+
+    - Enforce strict TypeScript typing(see tsconfig.json)
+        - Prefer interfaces over types for object definitions:
+            ```typescript
+  // Preferred:
+  interface UserData {
+    id: string;
+    name: string;
+  }
+  
+  // Avoid for object shapes:
+  type UserData = {
+    id: string;
+    name: string;
+  };
+
+  ```
+               *****IMPORTANT DON'T FORGET**** - Use functional programming patterns over class-based patterns where possible
+                    - Avoid enums; use string literal unions or constant maps:
+```typescript
+  // Preferred:
+  type Status = 'pending' | 'processing' | 'complete' | 'error';
+  
+  // Or:
+  const STATUS = {
+    PENDING: 'pending',
+    PROCESSING: 'processing',
+    COMPLETE: 'complete',
+    ERROR: 'error'
+  } as const;
+  type Status = typeof STATUS[keyof typeof STATUS];
+  
+  // Avoid:
+  enum Status {
+    PENDING = 'pending',
+    PROCESSING = 'processing',
+    COMPLETE = 'complete',
+    ERROR = 'error'
+  }
+  ```
+
+    - Use descriptive variable names with auxiliary verbs(e.g., `isLoading`, `hasError`)
+
+## MCP Tool Development Pattern
+
+    - Divide each tool implementation into three separate files:
+
+1. `yourToolParams.ts`:
+
+```typescript
+     import { z } from 'zod';
+  
+     export const TOOL_NAME = "yourTool";
+  
+     export const TOOL_DESCRIPTION = `Detailed description of what your tool does.`;
+  
+     export const TOOL_PARAMS = {
+       id: z.string().uuid().describe("A unique identifier (UUID format) for the request."),
+       input: z.string().min(1).describe("The primary input to be processed."),
+       // Other parameters with detailed descriptions
+     };
+     ```
+
+2. `yourTool.ts`:
+```typescript
+     import { McpServer, McpError, ErrorCode } from "@modelcontextprotocol/sdk";
+     import { TOOL_NAME, TOOL_DESCRIPTION, TOOL_PARAMS } from "./yourToolParams.js";
+     import { YourService } from "../services/index.js";
+     import { ValidationError } from "../utils/errors.js";
+  
+     export const yourTool = (server: McpServer, config?: any): void => {
+       const serviceInstance = new YourService(config);
+  
+       const processRequest = async (args: any) => {
+         try {
+           const result = await serviceInstance.processData(args);
+           return {
+             content: [{
+               type: "text" as const,
+               text: JSON.stringify(result)
+             }]
+           };
+         } catch (error) {
+           if (error instanceof ValidationError) {
+             throw new McpError(ErrorCode.InvalidParams, error.message);
+           }
+           throw new McpError(ErrorCode.InternalError, 
+             error instanceof Error ? error.message : 'Unknown error');
+         }
+       };
+  
+       server.tool(TOOL_NAME, TOOL_DESCRIPTION, TOOL_PARAMS, processRequest);
+     };
+     ```
+
+3. `YourService.ts`:
+```typescript
+     import { ConfigurationManager } from '../config/ConfigurationManager.js';
+     import { YourServiceConfig, YourServiceData } from '../types/index.js';
+  
+     export class YourService {
+       private readonly config: Required<YourServiceConfig>;
+  
+       constructor(config: Partial<YourServiceConfig> = {}) {
+         const configManager = ConfigurationManager.getInstance();
+         const defaultConfig = configManager.getYourServiceConfig();
+         this.config = { ...defaultConfig, ...config };
+       }
+  
+       public async processData(data: any): Promise<YourServiceData> {
+         // Service logic independent of MCP
+         return result;
+       }
+     }
+     ```
+
+    - Provide detailed `.describe()` strings for every zod parameter in `TOOL_PARAMS`
+        - Make descriptions comprehensive, explaining purpose, constraints, and usage examples
+            - This documentation is critical for LLM interaction
+                - Implement a structured error handling pattern:
+- Create custom error classes in utils / errors.ts:
+```typescript
+    export class ValidationError extends Error {
+      constructor(message: string, public details?: any) {
+        super(message);
+        this.name = 'ValidationError';
+      }
+    }
+    ```
+    - Map custom errors to McpError instances in the tool layer
+        - Use proper ErrorCode values(e.g., ErrorCode.InvalidParams, ErrorCode.InternalError)
+
+## Module Integration Pattern
+    - Use the ConfigurationManager singleton:
+```typescript
+  export class ConfigurationManager {
+    private static instance: ConfigurationManager;
+    
+    private constructor() {
+      // Initialize default configuration
+    }
+    
+    public static getInstance(): ConfigurationManager {
+      if (!ConfigurationManager.instance) {
+        ConfigurationManager.instance = new ConfigurationManager();
+      }
+      return ConfigurationManager.instance;
+    }
+    
+    // Getters and setters for configuration sections
+  }
+  ```
+
+    - Register all tools through a central registerTools function in tools / index.ts:
+
+```typescript
+  export function registerTools(server: McpServer): void {
+    yourTool(server);
+    // Register other tools here
+  }
+  ```
+
+    - Keep services independent of MCP - specific code
+        - Use barrel files(index.ts) in each directory:
+
+```typescript
+  // services/index.ts
+  export * from './YourService.js';
+  export * from './AnotherService.js';
+  ```
+
+## Code Quality Standards
+
+    - Write focused, pure functions with single responsibilities
+        - Create clear type definitions in separate files
+            - Implement comprehensive error handling with specific error types
+                - Comment complex logic or business rules
+                    - Use JSDoc for all public - facing functions and interfaces:
+
+```typescript
+  /**
+   * Processes the provided data and returns a result.
+   * 
+   * @param data - The input data to process
+   * @returns A promise that resolves to the processed result
+   * @throws {ValidationError} If the input data is invalid
+   */
+  public async processData(data: any): Promise<YourServiceData> {
+    // Implementation
+  }
+  ```
+
+    - Apply consistent naming conventions:
+
+- Use lowercase with dashes for directories(e.g., `/error-handling/`)
+  - Use camelCase for variables and functions
+    - Use PascalCase for types, interfaces, and classes
+
+## Tool Parameter Standards
+
+    - For every tool parameter:
+
+- Provide specific types(avoid 'any')
+  - Include validation rules(min / max / pattern / etc.)
+    - Add detailed descriptions explaining:
+
+```typescript
+    weight: z.number().min(0).max(1000).describe(
+      "The weight in kilograms (0-1000). Used for calculating shipping costs and must be greater than 0. Example: 24.5"
+    ),
+    ```
+    - Mark optional parameters appropriately:
+```typescript
+    metadata: z.object({
+      source: z.string().optional().describe("Optional tracking source")
+    }).optional().describe("Additional data about the request")
+    ```
+
+## Documentation Requirements
+    - ** Tool Documentation **:
+- Document each tool's purpose and usage in both the TOOL_DESCRIPTION and in README.md
+    - Include examples of valid inputs and expected outputs
+        - Document any constraints or limitations of the tool
+            - Explain relationships between related tools
+
+                - ** Configuration Documentation **:
+- Document all configuration options in ConfigurationManager
+    - Include default values, valid ranges, and effects of each option
+        - Document environment variables that affect configuration
+            - Provide configuration examples for common scenarios
+
+                - ** API Changes **:
+    - Document all changes to tool parameters or behaviors
+        - Include migration guides for breaking changes
+            - Maintain a CHANGELOG.md file for version history
+                - Use @deprecated JSDoc tags for deprecated features
+
+                    - ** Code Documentation **:
+    - Use JSDoc for all public - facing APIs
+        - Document complex algorithms with comments
+        - Include rationale for non - obvious design decisions
+            - Comment workarounds or temporary solutions with TODOs
+
+## Security Considerations
+    - ** Input Validation **:
+- Validate all inputs using zod or similar validation libraries
+- Implement depth and size limits for nested objects
+    - Sanitize all inputs before processing
+        - Never trust client - provided data
+
+            - ** Configuration Security **:
+- Use environment variables for sensitive configuration
+    - Never hardcode credentials or secrets
+        - Validate configuration values at startup
+            - Implement secure defaults
+
+                - ** Resource Protection **:
+- Set execution timeouts for all tool operations
+    - Implement rate limiting where appropriate
+        - Add circuit breakers for external dependencies
+            - Monitor resource usage for abnormal patterns
+
+                - ** Error Handling Security **:
+- Never expose stack traces to clients
+    - Log detailed errors internally but return sanitized messages
+        - Use appropriate McpError codes
+            - Avoid information disclosure in error messages
+
+## Performance Guidance
+    - ** Tool Execution **:
+- Set appropriate timeouts for tool operations
+    - Optimize CPU - intensive operations
+        - Use async / await for I / O - bound operations
+            - Implement caching for expensive operations
+
+                - ** Memory Management **:
+        - Avoid memory leaks in long - running services
+            - Properly clean up resources in error cases
+                - Be mindful of object retention patterns
+                    - Use streams for processing large data sets
+
+                        - ** Monitoring **:
+- Implement performance metrics for tool executions
+    - Log execution times for critical operations
+        - Set up alerts for performance degradation
+            - Monitor resource usage trends
+
+                - ** Scaling Considerations **:
+- Design tools to work efficiently under load
+    - Consider stateless designs where possible
+        - Document concurrency limitations
+            - Test with realistic workloads
+
+## MCP Server Development Protocol
+⚠️ ** CRITICAL: DO NOT USE attempt_completion BEFORE TESTING ** ⚠️
+
+### Step 1: Planning(PLAN MODE)
+    - What problem does this tool solve ?
+        - What API / service will it use ?
+            - What are the authentication requirements ?
+                - □ Standard API key
+                    - □ OAuth(requires separate setup script)
+                        - □ Other credentials
+
+### Step 2: Implementation(ACT MODE)
+1. ** Bootstrap **
+    - For web services, JavaScript integration, or Node.js environments:
+```bash
+     npx @modelcontextprotocol/create-server my-server
+     cd my-server
+     npm install
+     ```
+    - For data science, ML workflows, or Python environments:
+```bash
+     pip install mcp
+     # Or with uv (recommended)
+     uv add "mcp[cli]"
+     ```
+
+2. ** Core Implementation **
+    - Use MCP SDK
+        - Implement comprehensive logging
+            - TypeScript(for web / JS projects):
+                ```typescript
+       console.error('[Setup] Initializing server...');
+       console.error('[API] Request to endpoint:', endpoint);
+       console.error('[Error] Failed with:', error);
+       ```
+                    - Python(for data science / ML projects):
+                        ```python
+       import logging
+       logging.error('[Setup] Initializing server...')
+       logging.error(f'[API] Request to endpoint: {endpoint}')
+       logging.error(f'[Error] Failed with: {str(error)}')
+       ```
+                            - Add type definitions
+   - Handle errors with context
+- Implement rate limiting if needed
+
+3. ** Configuration **
+        - Get credentials from user if needed
+            - Add to MCP settings:
+- For TypeScript projects:
+```json
+       {
+         "mcpServers": {
+           "my-server": {
+             "command": "node",
+             "args": ["path/to/build/index.js"],
+             "env": {
+               "API_KEY": "key"
+             },
+             "disabled": false,
+             "autoApprove": []
+           }
+         }
+       }
+       ```
+    - For Python projects:
+```bash
+       # Directly with command line
+       mcp install server.py -v API_KEY=key
+       
+       # Or in settings.json
+       {
+         "mcpServers": {
+           "my-server": {
+             "command": "python",
+             "args": ["server.py"],
+             "env": {
+               "API_KEY": "key"
+             },
+             "disabled": false,
+             "autoApprove": []
+           }
+         }
+       }
+       ```
+
+### Step 3: Testing(BLOCKER ⛔️)
+    ```
+<thinking>
+BEFORE using attempt_completion, I MUST verify:
+□ Have I tested EVERY tool?
+□ Have I confirmed success from the user for each test?
+□ Have I documented the test results?
+
+If ANY answer is "no", I MUST NOT use attempt_completion.
+</thinking>
+```
+
+1. **Test Each Tool(REQUIRED)**
+    - □ Test each tool with valid inputs
+        - □ Verify output format is correct
+            - ⚠️ DO NOT PROCEED UNTIL ALL TOOLS TESTED
+
+### Step 4: Completion
+
+❗ **STOP AND VERIFY:**
+    - □ Every tool has been tested with valid inputs
+        - □ Output format is correct for each tool
+
+Only after ALL tools have been tested can attempt_completion be used.
+
+### Key Requirements
+
+    - ✓ Must use MCP SDK
+        - ✓ Must have comprehensive logging
+            - ✓ Must test each tool individually
+                - ✓ Must handle errors gracefully
+                    - ⛔️ NEVER skip testing before completion
+
+Following these guidelines will ensure consistent, maintainable, and robust MCP server implementations that adhere to the KISS principle while providing clear interfaces for LLM interaction.
