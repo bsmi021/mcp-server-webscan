@@ -1,75 +1,83 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
-import { fetchHtml } from "../utils.js";
-import { LinkResult, ExtractLinksArgs } from "../types-and-interfaces.js";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+import { TOOL_NAME, TOOL_DESCRIPTION, TOOL_PARAMS } from "./extractLinksToolParams.js";
+import { ExtractLinksService } from "../services/ExtractLinksService.js";
+// import { ExtractLinksArgs } from "../types/extractLinksTypes.js"; // Args type defined below
+import { ValidationError, ServiceError } from "../utils/index.js";
+import { logger } from "../utils/index.js";
 
-
+// Define the type for the arguments based on TOOL_PARAMS
+type ExtractLinksToolArgs = z.infer<z.ZodObject<typeof TOOL_PARAMS>>;
 
 /**
- * Tool that extracts all links from a web page
- * Uses optimized stream processing for large HTML documents
- * 
- * @param server - MCP server instance to register the tool with
+ * Registers the extract-links tool with the MCP server.
+ * Acts as an adapter between the MCP server and the ExtractLinksService.
+ *
+ * @param server - MCP server instance to register the tool with.
+ * @param config - Optional configuration for the ExtractLinksService (currently unused).
  */
-export const extractLinksTool = (server: McpServer): void => {
-    server.tool(
-        "extract-links",
-        "Extract and analyze all hyperlinks from a web page, organizing them into a structured format with URLs, anchor text, and contextual information. Performance-optimized with stream processing and worker threads for efficient handling of large pages. Works with either a direct URL or raw HTML content. Handles relative and absolute URLs properly by supporting an optional base URL parameter. Results can be limited to prevent overwhelming output for link-dense pages. Returns a comprehensive link inventory that includes destination URLs, link text, titles (if available), and whether links are internal or external to the source domain. Useful for site mapping, content analysis, broken link checking, SEO analysis, and as a preparatory step for targeted crawling operations.",
-        {
-            url: z.string().url(),
-            baseUrl: z.string().url().optional(),
-            limit: z.number().min(1).max(5000).optional().default(100),
+export const extractLinksTool = (server: McpServer, config?: any /* Replace 'any' with specific config type */): void => {
+    const serviceInstance = new ExtractLinksService();
 
-        },
-        async (args: ExtractLinksArgs, extra) => {
-            try {
-                const { $ } = await fetchHtml(args.url);
-                const links = new Set<string>();
-                const results: LinkResult[] = [];
+    /**
+     * Processes the extract-links tool request.
+     * @param args - The arguments object matching TOOL_PARAMS.
+     */
+    const processRequest = async (args: ExtractLinksToolArgs) => {
+        // Zod handles default for limit if not provided
+        const { url, baseUrl, limit } = args;
+        logger.debug(`Received ${TOOL_NAME} request`, { url, baseUrl, limit });
 
-                $('a[href]').each((_, element) => {
-                    const link = $(element);
-                    const href = link.attr('href');
-                    const text = link.text().trim();
+        try {
+            // Call the service method
+            const results = await serviceInstance.extractLinksFromPage(url, baseUrl, limit);
 
-                    if (href && !href.startsWith('#')) {
-                        try {
-                            const fullUrl = new URL(href, args.url).toString();
+            // Format the successful output for MCP
+            // Note: The original tool returned a 'links' property alongside content.
+            // The standard MCP response only has 'content'. We'll return the JSON string in content.
+            // If the 'links' property was specifically needed by the client, this is a breaking change.
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify(results, null, 2)
+                }]
+                // links: results // This is non-standard for MCP tool responses
+            };
 
-                            if (args.baseUrl && !fullUrl.startsWith(args.baseUrl)) {
-                                return;
-                            }
+        } catch (error) {
+            const logContext = {
+                args,
+                errorDetails: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : String(error)
+            };
+            logger.error(`Error processing ${TOOL_NAME}`, logContext);
 
-                            if (!links.has(fullUrl)) {
-                                links.add(fullUrl);
-                                results.push({
-                                    url: fullUrl,
-                                    text: text || '[No text]'
-                                });
-                            }
-                        } catch (e) {
-                            // Skip invalid URLs
-                        }
-                    }
-                });
-
-                // Return in the format expected by the MCP SDK
-                return {
-                    content: [
-                        {
-                            type: "text",
-                            text: JSON.stringify(results, null, 2)
-                        }
-                    ],
-                    links: results
-                };
-
-            } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-                throw new McpError(ErrorCode.InternalError, `Error extracting links: ${errorMessage}`);
+            // Map service-specific errors to McpError
+            if (error instanceof ValidationError) {
+                throw new McpError(ErrorCode.InvalidParams, `Validation failed: ${error.message}`, error.details);
             }
-        }
-    )
-}
+            if (error instanceof ServiceError) {
+                throw new McpError(ErrorCode.InternalError, error.message, error.details);
+            }
+            if (error instanceof McpError) {
+                throw error; // Re-throw existing McpErrors
+            }
 
+            // Catch-all for unexpected errors
+            throw new McpError(
+                ErrorCode.InternalError,
+                error instanceof Error ? `An unexpected error occurred in ${TOOL_NAME}: ${error.message}` : `An unexpected error occurred in ${TOOL_NAME}.`
+            );
+        }
+    };
+
+    // Register the tool
+    server.tool(
+        TOOL_NAME,
+        TOOL_DESCRIPTION,
+        TOOL_PARAMS,
+        processRequest
+    );
+
+    logger.info("Tool registered", { toolName: TOOL_NAME });
+};
