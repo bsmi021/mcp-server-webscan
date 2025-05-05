@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/bsmi021-mcp-server-webscan-badge.png)](https://mseep.ai/app/bsmi021-mcp-server-webscan)
+
 # MCP Webscan Server
 
 [![smithery badge](https://smithery.ai/badge/mcp-server-webscan)](https://smithery.ai/server/mcp-server-webscan)
